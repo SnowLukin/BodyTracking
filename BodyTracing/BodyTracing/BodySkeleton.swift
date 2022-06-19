@@ -81,6 +81,37 @@ class BodySkeleton: Entity {
         fatalError("init() has not been implemented")
     }
     
+    func update(with bodyAnchor: ARBodyAnchor) {
+        let rootPosition = simd_make_float3(bodyAnchor.transform.columns.3)
+        
+        // update the position of orientation of each joint
+        for jointName in ARSkeletonDefinition.defaultBody3D.jointNames {
+            // optain joint entity from joint dict
+            if let jointEntity = joints[jointName],
+               let jointEntityTransform = bodyAnchor.skeleton.modelTransform(for: ARSkeleton.JointName(rawValue: jointName)) {
+                // get offset from the root
+                let jointEntityOffsetFromRoot = simd_make_float3(jointEntityTransform.columns.3) // position relative to root
+                // update the joint position
+                jointEntity.position = jointEntityOffsetFromRoot + rootPosition // postition relative to world reference frame
+                // update joint entity orientation
+                jointEntity.orientation = Transform(matrix: jointEntityTransform).rotation
+                
+            }
+        }
+        
+        for bone in Bones.allCases {
+            let boneName = bone.name
+            
+            guard let entity = bones[boneName] else { continue }
+            guard let skeletonBone = createSkeletonBone(bone: bone, bodyAnchor: bodyAnchor) else { continue }
+            
+            // update position of the entity
+            entity.position = skeletonBone.centerPosition
+            // set orientation for bone cilinder
+            entity.look(at: skeletonBone.toJoint.position, from: skeletonBone.centerPosition, relativeTo: nil)
+        }
+    }
+    
     private func createJoint(radius: Float, color: UIColor = .white) -> Entity {
         // Create a sphere entity for every single joint of the skeleton
         let mesh = MeshResource.generateSphere(radius: radius)
